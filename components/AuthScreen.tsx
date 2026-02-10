@@ -17,7 +17,11 @@ import { FontSize, BorderRadius, Spacing } from '../constants/theme';
 
 type Step = 'email' | 'otp';
 
-export default function AuthScreen() {
+type AuthScreenProps = {
+  onClose?: () => void;
+};
+
+export default function AuthScreen({ onClose }: AuthScreenProps) {
   const { signInWithOtp, verifyOtp } = useAuth();
   const { colors } = useTheme();
   const [step, setStep] = useState<Step>('email');
@@ -58,6 +62,11 @@ export default function AuthScreen() {
 
   return (
     <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={styles.container}>
+      {onClose && (
+        <Pressable onPress={onClose} style={styles.closeButton}>
+          <Text style={styles.closeText}>✕</Text>
+        </Pressable>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.inner}
@@ -132,6 +141,23 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 56 : 40,
+    right: Spacing.md,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeText: {
+    color: '#ffffff',
+    fontSize: FontSize.lg,
+    fontWeight: '700',
   },
   inner: {
     flex: 1,

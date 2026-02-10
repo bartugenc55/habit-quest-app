@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity, Alert, Platform, Modal, TextInput, Pressable } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity, Alert, Platform, Modal, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { getAvatarImage } from '../utils/avatarHelper';
 import AvatarSelector from '../components/AvatarSelector';
+import AuthScreen from '../components/AuthScreen';
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: string }[] = [
   { mode: 'system', label: 'Sistem', icon: '📱' },
@@ -33,7 +34,7 @@ export default function ProfileScreen() {
   const { profile, badges, habits, removeHabit, updateProfile, reorderHabits, archiveHabit, unarchiveHabit, syncNow, isSyncing } = useHabits();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   const { myFriendCode, friends, addFriend, removeFriend } = useFriends();
-  const { isPremium } = useSubscription();
+  const { isPremium, buySubscription, restorePurchase } = useSubscription();
   const { user, signOut } = useAuth();
   const router = useRouter();
   const xpNeeded = xpRequiredForLevel(profile.level);
@@ -43,6 +44,16 @@ export default function ProfileScreen() {
   const [friendCodeInput, setFriendCodeInput] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
   const [habitTab, setHabitTab] = useState<HabitTab>('active');
+  const [isBuying, setIsBuying] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Auto-close login modal when user successfully signs in
+  useEffect(() => {
+    if (user && showLoginModal) {
+      setShowLoginModal(false);
+    }
+  }, [user]);
 
   const activeHabits = useMemo(
     () => [...habits].filter((h) => !h.isArchived).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
@@ -52,6 +63,32 @@ export default function ProfileScreen() {
     () => habits.filter((h) => h.isArchived),
     [habits],
   );
+
+  const handleBuyPremium = async () => {
+    setIsBuying(true);
+    try {
+      const success = await buySubscription();
+      if (success) {
+        Alert.alert('Basarili!', 'Premium aktif edildi.');
+      }
+    } finally {
+      setIsBuying(false);
+    }
+  };
+
+  const handleRestorePurchase = async () => {
+    setIsRestoring(true);
+    try {
+      const found = await restorePurchase();
+      if (found) {
+        Alert.alert('Basarili!', 'Premium geri yuklendi.');
+      } else {
+        Alert.alert('Bulunamadi', 'Aktif abonelik bulunamadi.');
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   const handleCopyCode = async () => {
     await Clipboard.setStringAsync(myFriendCode);
@@ -177,6 +214,88 @@ export default function ProfileScreen() {
           activeAvatar={profile.avatar}
           onSelect={(avatarId) => updateProfile({ avatar: avatarId })}
         />
+
+        {/* ── Pro / Premium Section ── */}
+        {isPremium ? (
+          <LinearGradient
+            colors={['#f1c40f', '#e67e22']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.proCard}
+          >
+            <Text style={styles.proActiveIcon}>👑</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proActiveTitle}>Premium Aktif</Text>
+              <Text style={styles.proActiveSubtitle}>Tum ozellikler acik!</Text>
+            </View>
+            <Text style={styles.proActiveCheck}>✅</Text>
+          </LinearGradient>
+        ) : (
+          <View style={[
+            styles.proSection,
+            { backgroundColor: colors.surface },
+            !isDark && [shadow(2), { borderColor: colors.border, borderWidth: 1 }],
+          ]}>
+            <LinearGradient
+              colors={['#f1c40f', '#f39c12', '#e67e22']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.proHeader}
+            >
+              <Text style={styles.proCrown}>👑</Text>
+              <Text style={styles.proTitle}>Habit Quest Premium</Text>
+              <Text style={styles.proSubtitle}>Tum ozelliklerin kilidini ac</Text>
+            </LinearGradient>
+
+            <View style={styles.proFeatures}>
+              {[
+                { icon: '♾️', text: 'Sinirsiz aliskanlik ekle' },
+                { icon: '🎨', text: 'Ozel premium temalar' },
+                { icon: '📊', text: 'Detayli istatistikler' },
+                { icon: '🚫', text: 'Reklamsiz deneyim' },
+              ].map((f) => (
+                <View key={f.text} style={styles.proFeatureRow}>
+                  <Text style={styles.proFeatureIcon}>{f.icon}</Text>
+                  <Text style={[styles.proFeatureText, { color: colors.text }]}>{f.text}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.proBuyBtn, isBuying && { opacity: 0.7 }]}
+              onPress={handleBuyPremium}
+              disabled={isBuying || isRestoring}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#f1c40f', '#e67e22']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.proBuyBtnInner}
+              >
+                {isBuying ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.proBuyBtnText}>Premium'a Gec</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.proRestoreBtn}
+              onPress={handleRestorePurchase}
+              disabled={isBuying || isRestoring}
+            >
+              {isRestoring ? (
+                <ActivityIndicator color={colors.secondaryText} size="small" />
+              ) : (
+                <Text style={[styles.proRestoreText, { color: colors.secondaryText }]}>
+                  Satin Alimi Geri Yukle
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         <TouchableOpacity
           style={[
@@ -603,41 +722,61 @@ export default function ProfileScreen() {
 
         {/* ── Cloud Sync ── */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Bulut Senkronizasyon</Text>
-        {user && (
-          <Text style={[styles.syncEmail, { color: colors.secondaryText }]}>
-            {user.email}
-          </Text>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.syncButton,
-            { backgroundColor: colors.primary },
-            isSyncing && { opacity: 0.6 },
-          ]}
-          onPress={syncNow}
-          disabled={isSyncing}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.syncButtonText}>
-            {isSyncing ? 'Senkronize ediliyor...' : 'Simdi Senkronize Et'}
-          </Text>
-        </TouchableOpacity>
+        {user ? (
+          <>
+            <Text style={[styles.syncEmail, { color: colors.secondaryText }]}>
+              {user.email}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.syncButton,
+                { backgroundColor: colors.primary },
+                isSyncing && { opacity: 0.6 },
+              ]}
+              onPress={syncNow}
+              disabled={isSyncing}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncButtonText}>
+                {isSyncing ? 'Senkronize ediliyor...' : 'Simdi Senkronize Et'}
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.signOutButton,
-            { backgroundColor: colors.danger + '15', borderColor: colors.danger, borderWidth: 1 },
-          ]}
-          onPress={() => {
-            Alert.alert('Cikis Yap', 'Hesabinizdan cikis yapmak istiyor musunuz?', [
-              { text: 'Iptal', style: 'cancel' },
-              { text: 'Cikis Yap', style: 'destructive', onPress: signOut },
-            ]);
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.signOutText, { color: colors.danger }]}>Cikis Yap</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.signOutButton,
+                { backgroundColor: colors.danger + '15', borderColor: colors.danger, borderWidth: 1 },
+              ]}
+              onPress={() => {
+                Alert.alert('Cikis Yap', 'Hesabinizdan cikis yapmak istiyor musunuz?', [
+                  { text: 'Iptal', style: 'cancel' },
+                  { text: 'Cikis Yap', style: 'destructive', onPress: signOut },
+                ]);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.signOutText, { color: colors.danger }]}>Cikis Yap</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.syncDesc, { color: colors.secondaryText }]}>
+              Verilerini buluta yedeklemek icin giris yap.
+            </Text>
+            <TouchableOpacity
+              style={[styles.syncButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowLoginModal(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncButtonText}>Giris Yap</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* ── Login Modal ── */}
+        <Modal visible={showLoginModal} animationType="slide">
+          <AuthScreen onClose={() => setShowLoginModal(false)} />
+        </Modal>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -712,6 +851,106 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: '700',
   },
+  // ── Pro Section ──
+  proCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  proActiveIcon: {
+    fontSize: FontSize.xxl,
+    marginRight: Spacing.sm,
+  },
+  proActiveTitle: {
+    color: '#ffffff',
+    fontSize: FontSize.lg,
+    fontWeight: '800',
+  },
+  proActiveSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+  },
+  proActiveCheck: {
+    fontSize: FontSize.xxl,
+  },
+  proSection: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  proHeader: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+  },
+  proCrown: {
+    fontSize: FontSize.hero - 10,
+    marginBottom: Spacing.xs,
+  },
+  proTitle: {
+    color: '#ffffff',
+    fontSize: FontSize.xl,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  proSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+    marginTop: Spacing.xs,
+  },
+  proFeatures: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+  },
+  proFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  proFeatureIcon: {
+    fontSize: FontSize.xl,
+    marginRight: Spacing.md,
+  },
+  proFeatureText: {
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    flex: 1,
+  },
+  proBuyBtn: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  proBuyBtnInner: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.full,
+  },
+  proBuyBtnText: {
+    color: '#ffffff',
+    fontSize: FontSize.lg,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  proRestoreBtn: {
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  proRestoreText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+
   statsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1022,6 +1261,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
+  },
+  syncDesc: {
+    fontSize: FontSize.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
   },
   syncButton: {
     marginHorizontal: Spacing.md,

@@ -5,7 +5,7 @@ import { supabase } from '../utils/supabase'
 // ── Dev Auth Bypass ─────────────────────────────────────────────────
 // Set to `true` to skip login screens and use a mock user during development.
 // Set back to `false` to re-enable real authentication.
-const DEV_AUTH_BYPASS = true;
+const DEV_AUTH_BYPASS = false;
 
 const DEV_MOCK_USER = {
   id: '00000000-0000-0000-0000-000000000000',
@@ -92,7 +92,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 export const useAuth = () => {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
-  console.log("AUTH USER:", ctx.user);
   return ctx
 }
 

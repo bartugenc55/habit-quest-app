@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Tabs, useRouter, SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,8 +10,7 @@ import { FriendProvider } from '../context/FriendContext';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
 import { shadow } from '../constants/theme';
 import OnboardingScreen from '../components/OnboardingScreen';
-import AuthScreen from '../components/AuthScreen';
-import { AuthProvider, useAuth } from '../context/AuthContext';
+import { AuthProvider } from '../context/AuthContext';
 
 
 // Keep native splash visible while we read onboarding status from AsyncStorage.
@@ -149,25 +148,6 @@ function TabsLayout({ pendingNavigateToAddHabit, onNavigated }: { pendingNavigat
   );
 }
 
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const { colors } = useTheme();
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (!user) {
-    return <AuthScreen />;
-  }
-
-  return <>{children}</>;
-}
-
 function AppContent() {
   const [pendingNavigate, setPendingNavigate] = useState(false);
 
@@ -211,15 +191,13 @@ function RootGate() {
 
   return (
     <AuthProvider>
-      <AuthGate>
-        <SubscriptionProvider>
-          <HabitProvider>
-            <FriendProvider>
-              <AppContent />
-            </FriendProvider>
-          </HabitProvider>
-        </SubscriptionProvider>
-      </AuthGate>
+      <SubscriptionProvider>
+        <HabitProvider>
+          <FriendProvider>
+            <AppContent />
+          </FriendProvider>
+        </HabitProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }
