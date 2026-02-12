@@ -1,8 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Habit } from './sampleData';
+import { supabase } from './supabase';
 
 const NOTIF_ID_KEY = '@habitquest_daily_notif_id';
 
@@ -151,4 +153,41 @@ export async function cancelAllHabitReminders(habits: Habit[]): Promise<void> {
   for (const habit of habits) {
     await cancelHabitReminders(habit.notificationIds);
   }
+}
+
+// ── Push token (remote notifications) ──
+
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (!Device.isDevice) {
+    Alert.alert(
+      'Fiziksel Cihaz Gerekli',
+      'Push bildirimleri yalnizca fiziksel cihazlarda calisir. Simulatorde kullanilamaz.',
+    );
+    return null;
+  }
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const { data: token } = await Notifications.getExpoPushTokenAsync({
+    ...(projectId ? { projectId } : {}),
+  });
+
+  return token;
+}
+
+export async function savePushTokenToSupabase(userId: string, token: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      { id: userId, expo_push_token: token },
+      { onConflict: 'id' },
+    );
+
+  if (error) {
+    console.error('savePushToken error:', error.message);
+    return false;
+  }
+  return true;
 }

@@ -13,7 +13,7 @@ import { xpRequiredForLevel } from '../utils/xp';
 import { Habit } from '../utils/sampleData';
 import BadgeComponent from '../components/Badge';
 import Screen from '../components/ui/Screen';
-import { requestNotificationPermissions, cancelAllNotifications, scheduleDailyReminder, scheduleAllHabitReminders, cancelAllHabitReminders } from '../utils/notifications';
+import { requestNotificationPermissions, cancelAllNotifications, scheduleDailyReminder, scheduleAllHabitReminders, cancelAllHabitReminders, registerForPushNotificationsAsync, savePushTokenToSupabase } from '../utils/notifications';
 import { saveHabits } from '../utils/storage';
 import { useSubscription } from '../context/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,6 +47,7 @@ export default function ProfileScreen() {
   const [isBuying, setIsBuying] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isSavingToken, setIsSavingToken] = useState(false);
 
   // Auto-close login modal when user successfully signs in
   useEffect(() => {
@@ -142,6 +143,28 @@ export default function ProfileScreen() {
       const cleared = habits.map((h) => ({ ...h, notificationIds: [] }));
       await saveHabits(cleared);
       updateProfile({ notificationsEnabled: false });
+    }
+  };
+
+  const handleEnablePushNotifications = async () => {
+    if (!user) return;
+    setIsSavingToken(true);
+    try {
+      const token = await registerForPushNotificationsAsync();
+      if (!token) {
+        setIsSavingToken(false);
+        return;
+      }
+      const saved = await savePushTokenToSupabase(user.id, token);
+      if (saved) {
+        Alert.alert('Basarili', 'Push bildirimleri etkinlestirildi!');
+      } else {
+        Alert.alert('Hata', 'Token kaydedilirken bir sorun olustu.');
+      }
+    } catch (e) {
+      Alert.alert('Hata', 'Bildirim ayarlanirken bir sorun olustu.');
+    } finally {
+      setIsSavingToken(false);
     }
   };
 
@@ -739,6 +762,21 @@ export default function ProfileScreen() {
             >
               <Text style={styles.syncButtonText}>
                 {isSyncing ? 'Senkronize ediliyor...' : 'Simdi Senkronize Et'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.syncButton,
+                { backgroundColor: colors.primary, marginTop: Spacing.sm },
+                isSavingToken && { opacity: 0.6 },
+              ]}
+              onPress={handleEnablePushNotifications}
+              disabled={isSavingToken}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncButtonText}>
+                {isSavingToken ? 'Token kaydediliyor...' : 'Bildirimleri Ac'}
               </Text>
             </TouchableOpacity>
 

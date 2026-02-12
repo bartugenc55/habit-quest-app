@@ -284,7 +284,7 @@ export default function HomeScreen() {
       />
       <NotificationBanner
         message="Seri Koruyucu kullanildi! Streak'in korundu."
-        icon="🛡️"
+        icon="🔥"
         visible={freezeBannerShown}
         onHide={() => { setFreezeBannerShown(false); dismissStreakFreezeNotice(); }}
       />
