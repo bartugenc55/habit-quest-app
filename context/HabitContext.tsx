@@ -13,7 +13,7 @@ import {
 } from '../utils/sampleData';
 import { saveHabits, loadHabits, saveProfile, loadProfile, getLastResetDate, setLastResetDate, saveDailyLogs, loadDailyLogs, getLastDailyClaimDate, setLastDailyClaimDate, getLastShieldGrantDate, setLastShieldGrantDate } from '../utils/storage';
 import { calculateXPGain, checkLevelUp, getXPForDifficulty, isBoostActive } from '../utils/xp';
-import { scheduleDailyReminder, scheduleHabitReminders, scheduleAllHabitReminders, cancelHabitReminders, cancelAllHabitReminders } from '../utils/notifications';
+import { scheduleHabitReminders, cancelHabitReminders, ensureRemindersScheduled } from '../utils/notifications';
 import { computeHabitStreak } from '../utils/stats';
 import { DailyChestReward, rollDailyChest } from '../utils/dailyChest';
 import { DailyQuest, loadOrCreateDailyQuest, saveDailyQuest, evaluateQuestProgress } from '../utils/dailyQuest';
@@ -287,11 +287,14 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (currentProfile.notificationsEnabled) {
-          const hour = currentProfile.notificationHour ?? 21;
-          const minute = currentProfile.notificationMinute ?? 0;
-          scheduleDailyReminder(hour, minute).catch(() => {});
-          // Schedule per-habit reminders
-          currentHabits = await scheduleAllHabitReminders(currentHabits);
+          currentHabits = await ensureRemindersScheduled(
+            {
+              notificationsEnabled: true,
+              notificationHour: currentProfile.notificationHour ?? 21,
+              notificationMinute: currentProfile.notificationMinute ?? 0,
+            },
+            currentHabits,
+          );
           await saveHabits(currentHabits);
         }
 
@@ -452,7 +455,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
 
         if (reminderChanged) {
           const updatedHabit = updated.find((h) => h.id === id)!;
-          await cancelHabitReminders(oldHabit.notificationIds);
+          await cancelHabitReminders(oldHabit.id);
           if (updatedHabit.reminderEnabled && updatedHabit.reminderTime) {
             const ids = await scheduleHabitReminders(updatedHabit);
             updated = updated.map((h) => (h.id === id ? { ...h, notificationIds: ids } : h));
@@ -471,7 +474,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     async (id: string) => {
       const habit = habits.find((h) => h.id === id);
       if (habit) {
-        await cancelHabitReminders(habit.notificationIds);
+        await cancelHabitReminders(habit.id);
       }
       const updated = habits.filter((h) => h.id !== id);
       persistHabits(updated);
@@ -508,7 +511,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     async (id: string) => {
       const habit = habits.find((h) => h.id === id);
       if (habit) {
-        await cancelHabitReminders(habit.notificationIds);
+        await cancelHabitReminders(habit.id);
       }
       const updated = habits.map((h) => (h.id === id ? { ...h, isArchived: true, notificationIds: [] } : h));
       persistHabits(updated);

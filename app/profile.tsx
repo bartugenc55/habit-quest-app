@@ -13,7 +13,7 @@ import { xpRequiredForLevel } from '../utils/xp';
 import { Habit } from '../utils/sampleData';
 import BadgeComponent from '../components/Badge';
 import Screen from '../components/ui/Screen';
-import { requestNotificationPermissions, cancelAllNotifications, scheduleDailyReminder, scheduleAllHabitReminders, cancelAllHabitReminders, registerForPushNotificationsAsync, savePushTokenToSupabase } from '../utils/notifications';
+import { requestNotificationPermissions, cancelOurReminders, scheduleDailyReminder, ensureRemindersScheduled, registerForPushNotificationsAsync, savePushTokenToSupabase } from '../utils/notifications';
 import { saveHabits } from '../utils/storage';
 import { useSubscription } from '../context/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -125,9 +125,10 @@ export default function ProfileScreen() {
       if (granted) {
         const hour = profile.notificationHour ?? 21;
         const minute = profile.notificationMinute ?? 0;
-        await scheduleDailyReminder(hour, minute);
-        // Schedule per-habit reminders
-        const updatedHabits = await scheduleAllHabitReminders(habits);
+        const updatedHabits = await ensureRemindersScheduled(
+          { notificationsEnabled: true, notificationHour: hour, notificationMinute: minute },
+          habits,
+        );
         await saveHabits(updatedHabits);
         updateProfile({ notificationsEnabled: true });
       } else {
@@ -137,9 +138,7 @@ export default function ProfileScreen() {
         );
       }
     } else {
-      await cancelAllNotifications();
-      // Cancel all per-habit reminders
-      await cancelAllHabitReminders(habits);
+      await cancelOurReminders();
       const cleared = habits.map((h) => ({ ...h, notificationIds: [] }));
       await saveHabits(cleared);
       updateProfile({ notificationsEnabled: false });

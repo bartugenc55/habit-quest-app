@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { Tabs, useRouter, SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,7 +11,9 @@ import { FriendProvider } from '../context/FriendContext';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
 import { shadow } from '../constants/theme';
 import OnboardingScreen from '../components/OnboardingScreen';
-import { AuthProvider } from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { useActivityTracker } from '../utils/activity';
+import { setAnalyticsUserId, logNotificationEvent } from '../utils/notificationAnalytics';
 
 
 // Keep native splash visible while we read onboarding status from AsyncStorage.
@@ -150,6 +153,32 @@ function TabsLayout({ pendingNavigateToAddHabit, onNavigated }: { pendingNavigat
 
 function AppContent() {
   const [pendingNavigate, setPendingNavigate] = useState(false);
+  const { user } = useAuth();
+  const responseListener = useRef<Notifications.EventSubscription>();
+
+  // Activity tracking — upserts last_seen_at on mount & foreground
+  useActivityTracker(user?.id);
+
+  // Set analytics userId so notification scheduling logs work
+  useEffect(() => {
+    setAnalyticsUserId(user?.id ?? null);
+  }, [user?.id]);
+
+  // Log 'opened' event when user taps a notification
+  useEffect(() => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const tag = (response.notification.request.content.data as Record<string, unknown>)?.tag;
+      if (typeof tag === 'string' && user?.id) {
+        logNotificationEvent('opened', tag, user.id).catch(() => {});
+      }
+    });
+
+    return () => {
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [user?.id]);
 
   return <TabsLayout pendingNavigateToAddHabit={pendingNavigate} onNavigated={() => setPendingNavigate(false)} />;
 }
