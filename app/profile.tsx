@@ -48,6 +48,8 @@ export default function ProfileScreen() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
+  const [showEditName, setShowEditName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState(profile.name);
 
   // Auto-close login modal when user successfully signs in
   useEffect(() => {
@@ -633,6 +635,80 @@ export default function ProfileScreen() {
         )}
 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Ayarlar</Text>
+
+        {/* Edit Name */}
+        <TouchableOpacity
+          style={[
+            styles.settingRow,
+            { backgroundColor: colors.surface, marginBottom: Spacing.sm },
+            !isDark && [shadow(1), { borderColor: colors.border, borderWidth: 1 }],
+          ]}
+          onPress={() => { setEditNameValue(profile.name); setShowEditName(true); }}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.settingLabel, { color: colors.text }]}>Kullanici Adi</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: colors.secondaryText, fontSize: FontSize.md, marginRight: Spacing.xs }}>{profile.name}</Text>
+            <Text style={{ fontSize: FontSize.lg, color: colors.secondaryText }}>{'>'}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Edit Name Modal */}
+        <Modal visible={showEditName} transparent animationType="slide">
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.addFriendModal, { backgroundColor: colors.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Ismi Duzenle</Text>
+                <TouchableOpacity onPress={() => setShowEditName(false)}>
+                  <Text style={[styles.modalDone, { color: colors.primary }]}>Kapat</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.addFriendBody}>
+                <TextInput
+                  style={[
+                    styles.friendCodeInput,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                    },
+                  ]}
+                  placeholder="Ismin"
+                  placeholderTextColor={colors.mutedText}
+                  value={editNameValue}
+                  onChangeText={setEditNameValue}
+                  autoFocus
+                  maxLength={20}
+                />
+                <Pressable
+                  style={[
+                    styles.addFriendSubmit,
+                    { backgroundColor: editNameValue.trim().length >= 2 ? colors.primary : colors.surface },
+                    editNameValue.trim().length < 2 && { opacity: 0.5 },
+                  ]}
+                  onPress={() => {
+                    const trimmed = editNameValue.trim();
+                    if (trimmed.length < 2) {
+                      Alert.alert('Hata', 'Isim en az 2 karakter olmali.');
+                      return;
+                    }
+                    updateProfile({ name: trimmed });
+                    setShowEditName(false);
+                  }}
+                  disabled={editNameValue.trim().length < 2}
+                >
+                  <Text style={[
+                    styles.addFriendSubmitText,
+                    { color: editNameValue.trim().length >= 2 ? '#ffffff' : colors.mutedText },
+                  ]}>
+                    Kaydet
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <View style={[
           styles.settingRow,

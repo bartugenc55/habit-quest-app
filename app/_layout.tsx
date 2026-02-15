@@ -11,9 +11,12 @@ import { FriendProvider } from '../context/FriendContext';
 import { SubscriptionProvider } from '../context/SubscriptionContext';
 import { shadow } from '../constants/theme';
 import OnboardingScreen from '../components/OnboardingScreen';
+import AuthScreen from '../components/AuthScreen';
+import CreateNameScreen from '../components/CreateNameScreen';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useActivityTracker } from '../utils/activity';
 import { setAnalyticsUserId, logNotificationEvent } from '../utils/notificationAnalytics';
+import { loadProfile } from '../utils/storage';
 
 
 // Keep native splash visible while we read onboarding status from AsyncStorage.
@@ -191,25 +194,53 @@ function AppContent() {
 
 function RootGate() {
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
 
+  // 1. Check onboarding status
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY)
       .then((value) => {
-        const result = value === 'true';
-        console.log('hasOnboarded:', result);
-        setHasOnboarded(result);
+        console.log('hasOnboarded:', value === 'true');
+        setHasOnboarded(value === 'true');
       })
-      .catch(() => setHasOnboarded(false))
-      .finally(() => SplashScreen.hideAsync());
+      .catch(() => setHasOnboarded(false));
   }, []);
+
+  // 2. Check profile name when user is available
+  useEffect(() => {
+    if (!user) {
+      setProfileName(null);
+      setProfileChecked(false);
+      return;
+    }
+    setProfileChecked(false);
+    loadProfile()
+      .then((p) => setProfileName(p?.name || ''))
+      .catch(() => setProfileName(''))
+      .finally(() => setProfileChecked(true));
+  }, [user]);
+
+  // 3. Hide splash when we can determine what to show
+  useEffect(() => {
+    if (hasOnboarded === null) return;
+    if (!hasOnboarded) { SplashScreen.hideAsync(); return; }
+    if (authLoading) return;
+    if (!user) { SplashScreen.hideAsync(); return; }
+    if (profileChecked) { SplashScreen.hideAsync(); return; }
+  }, [hasOnboarded, authLoading, user, profileChecked]);
 
   const handleOnboardingFinish = useCallback(async () => {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     setHasOnboarded(true);
   }, []);
 
-  // Native splash is still visible (preventAutoHideAsync).
-  // Return an empty View so Expo Router keeps the layout mounted — never return null.
+  const handleNameSet = useCallback((name: string) => {
+    setProfileName(name);
+  }, []);
+
+  // Gate logic — render the first unresolved gate
   if (hasOnboarded === null) {
     return <View style={{ flex: 1 }} />;
   }
@@ -218,16 +249,30 @@ function RootGate() {
     return <OnboardingScreen onFinish={handleOnboardingFinish} />;
   }
 
+  if (authLoading) {
+    return <View style={{ flex: 1 }} />;
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  if (!profileChecked) {
+    return <View style={{ flex: 1 }} />;
+  }
+
+  if (!profileName) {
+    return <CreateNameScreen onNameSet={handleNameSet} />;
+  }
+
   return (
-    <AuthProvider>
-      <SubscriptionProvider>
-        <HabitProvider>
-          <FriendProvider>
-            <AppContent />
-          </FriendProvider>
-        </HabitProvider>
-      </SubscriptionProvider>
-    </AuthProvider>
+    <SubscriptionProvider>
+      <HabitProvider>
+        <FriendProvider>
+          <AppContent />
+        </FriendProvider>
+      </HabitProvider>
+    </SubscriptionProvider>
   );
 }
 
@@ -235,7 +280,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <RootGate />
+        <AuthProvider>
+          <RootGate />
+        </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
