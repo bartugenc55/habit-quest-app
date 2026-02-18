@@ -14,7 +14,7 @@ import { Habit } from '../utils/sampleData';
 import BadgeComponent from '../components/Badge';
 import Screen from '../components/ui/Screen';
 import { requestNotificationPermissions, cancelOurReminders, scheduleDailyReminder, ensureRemindersScheduled, registerForPushNotificationsAsync, savePushTokenToSupabase } from '../utils/notifications';
-import { saveHabits } from '../utils/storage';
+import { saveHabits, clearAllData } from '../utils/storage';
 import { useSubscription } from '../context/SubscriptionContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
@@ -817,6 +817,50 @@ export default function ProfileScreen() {
           <Text style={[styles.settingLabel, { color: colors.warning }]}>Onboarding'i Sifirla</Text>
           <Text style={{ fontSize: FontSize.lg }}>🔄</Text>
         </TouchableOpacity>
+
+        {/* Reset All (Onboarding + Logout + Clear cached profile) */}
+        <TouchableOpacity
+          style={[
+            styles.settingRow,
+            { backgroundColor: colors.surface, marginTop: Spacing.sm },
+            !isDark && [shadow(1), { borderColor: colors.border, borderWidth: 1 }],
+          ]}
+          onPress={() => {
+            Alert.alert(
+              'Tumunu Sifirla',
+              'Onboarding, oturum ve profil verisi sifirlanacak. Uygulama giris ekranina donecek.',
+              [
+                { text: 'Iptal', style: 'cancel' },
+                {
+                  text: 'Sifirla',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await AsyncStorage.removeItem('@hq/hasOnboarded');
+                    await clearAllData();
+                    await signOut();
+                    console.log('[Profile] Reset All complete');
+                  },
+                },
+              ],
+            );
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.settingLabel, { color: colors.danger }]}>Tumunu Sifirla (Test)</Text>
+          <Text style={{ fontSize: FontSize.lg }}>🗑️</Text>
+        </TouchableOpacity>
+
+        {/* Debug Info */}
+        <View style={[
+          styles.settingRow,
+          { backgroundColor: colors.surface, marginTop: Spacing.sm, flexDirection: 'column', alignItems: 'flex-start' },
+          !isDark && [shadow(1), { borderColor: colors.border, borderWidth: 1 }],
+        ]}>
+          <Text style={[styles.settingLabel, { color: colors.mutedText, marginBottom: Spacing.xs }]}>Debug Bilgisi</Text>
+          <Text style={{ color: colors.secondaryText, fontSize: FontSize.xs, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+            {`session: ${user ? 'YES (' + (user.email ?? '?') + ')' : 'NO'}\nhasName: ${profile.name ? 'YES (' + profile.name + ')' : 'NO'}`}
+          </Text>
+        </View>
 
         {/* ── Cloud Sync ── */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Bulut Senkronizasyon</Text>

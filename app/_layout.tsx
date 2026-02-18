@@ -19,8 +19,8 @@ import { setAnalyticsUserId, logNotificationEvent } from '../utils/notificationA
 import { loadProfile } from '../utils/storage';
 
 
-// Keep native splash visible while we read onboarding status from AsyncStorage.
-// This prevents Expo Router from rendering child routes before the gate resolves.
+// Keep native splash visible until the auth gate resolves.
+// Gate order: auth → onboarding → profile name → tabs.
 SplashScreen.preventAutoHideAsync();
 
 const TAB_BAR_HEIGHT = 72;
@@ -193,22 +193,19 @@ function AppContent() {
 // }
 
 function RootGate() {
-  const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   const { user, isLoading: authLoading } = useAuth();
+  const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileChecked, setProfileChecked] = useState(false);
 
-  // 1. Check onboarding status
+  // 1. Load onboarding flag from AsyncStorage (runs once on mount)
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY)
-      .then((value) => {
-        console.log('hasOnboarded:', value === 'true');
-        setHasOnboarded(value === 'true');
-      })
+      .then((value) => setHasOnboarded(value === 'true'))
       .catch(() => setHasOnboarded(false));
   }, []);
 
-  // 2. Check profile name when user is available
+  // 2. Load profile name when a user session exists
   useEffect(() => {
     if (!user) {
       setProfileName(null);
@@ -222,14 +219,19 @@ function RootGate() {
       .finally(() => setProfileChecked(true));
   }, [user]);
 
-  // 3. Hide splash when we can determine what to show
+  // 3. Hide splash as soon as we can determine what to show
   useEffect(() => {
-    if (hasOnboarded === null) return;
-    if (!hasOnboarded) { SplashScreen.hideAsync(); return; }
+    // Still loading auth → keep splash
     if (authLoading) return;
+    // No session → will show AuthScreen, hide splash
     if (!user) { SplashScreen.hideAsync(); return; }
+    // Session exists but onboarding flag not loaded yet → keep splash
+    if (hasOnboarded === null) return;
+    // Onboarding not done → will show OnboardingScreen, hide splash
+    if (!hasOnboarded) { SplashScreen.hideAsync(); return; }
+    // Profile loaded (or empty) → hide splash
     if (profileChecked) { SplashScreen.hideAsync(); return; }
-  }, [hasOnboarded, authLoading, user, profileChecked]);
+  }, [authLoading, user, hasOnboarded, profileChecked]);
 
   const handleOnboardingFinish = useCallback(async () => {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
@@ -240,31 +242,47 @@ function RootGate() {
     setProfileName(name);
   }, []);
 
-  // Gate logic — render the first unresolved gate
-  if (hasOnboarded === null) {
-    return <View style={{ flex: 1 }} />;
-  }
+  // ── Debug (remove later) ──
+  console.log('[RootGate]', {
+    authLoading,
+    sessionExists: !!user,
+    onboardingDone: hasOnboarded,
+    profileChecked,
+    hasName: !!profileName,
+  });
 
-  if (!hasOnboarded) {
-    return <OnboardingScreen onFinish={handleOnboardingFinish} />;
-  }
-
+  // ── Gate logic — AUTH FIRST ──
+  // 1. Wait for Supabase to resolve the persisted session
   if (authLoading) {
     return <View style={{ flex: 1 }} />;
   }
 
+  // 2. No session → must login (email required)
   if (!user) {
     return <AuthScreen />;
   }
 
+  // 3. Session OK → check onboarding (wait for AsyncStorage read)
+  if (hasOnboarded === null) {
+    return <View style={{ flex: 1 }} />;
+  }
+
+  // 4. Onboarding not completed → show onboarding
+  if (!hasOnboarded) {
+    return <OnboardingScreen onFinish={handleOnboardingFinish} />;
+  }
+
+  // 5. Wait for profile load
   if (!profileChecked) {
     return <View style={{ flex: 1 }} />;
   }
 
+  // 6. No profile name → must create one
   if (!profileName) {
     return <CreateNameScreen onNameSet={handleNameSet} />;
   }
 
+  // 7. All gates passed → main app
   return (
     <SubscriptionProvider>
       <HabitProvider>
