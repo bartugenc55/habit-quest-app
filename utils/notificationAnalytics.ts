@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 
 // ── Module-level userId so scheduling code doesn't need to pass it ──
 let _userId: string | null = null;
@@ -30,7 +30,7 @@ export async function logNotificationEvent(
   if (!uid) return;
 
   try {
-    await supabase
+    await getSupabase()
       .from('notification_events')
       .insert({ user_id: uid, event, tag });
   } catch {

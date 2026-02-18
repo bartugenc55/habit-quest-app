@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 import { Habit, UserProfile, DailyLogs } from './sampleData';
 
 export interface CloudPayload {
@@ -15,7 +15,7 @@ export interface CloudPayload {
  */
 export async function fetchUserData(userId: string): Promise<CloudPayload | null> {
   console.log("FETCH USER ID:", userId);
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('user_data')
     .select('payload')
     .eq('user_id', userId)
@@ -34,7 +34,7 @@ export async function fetchUserData(userId: string): Promise<CloudPayload | null
  * Uses the RLS policy so only the owning user can write.
  */
 export async function upsertUserData(userId: string, payload: CloudPayload): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('user_data')
     .upsert(
       { user_id: userId, payload, updated_at: new Date().toISOString() },

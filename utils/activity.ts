@@ -1,6 +1,6 @@
 import { AppState, AppStateStatus } from 'react-native';
 import { useEffect } from 'react';
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 
 // ── Debounce: at most one upsert per 60 seconds ──
 const MIN_INTERVAL_MS = 60_000;
@@ -17,7 +17,7 @@ export async function reportUserActive(userId: string): Promise<void> {
 
   try {
     const ts = new Date().toISOString();
-    await supabase.from('user_activity').upsert(
+    await getSupabase().from('user_activity').upsert(
       { user_id: userId, last_seen_at: ts, updated_at: ts },
       { onConflict: 'user_id' },
     );

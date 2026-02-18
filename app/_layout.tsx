@@ -17,6 +17,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useActivityTracker } from '../utils/activity';
 import { setAnalyticsUserId, logNotificationEvent } from '../utils/notificationAnalytics';
 import { loadProfile } from '../utils/storage';
+import { resetAuthOnFreshInstallIfNeeded } from '../utils/firstRunReset';
 
 
 // Keep native splash visible until the auth gate resolves.
@@ -194,11 +195,10 @@ function AppContent() {
 // }
 
 function RootGate() {
-  const { user, session, isLoading: authLoading, clearStaleSession } = useAuth();
+  const { user, session, isLoading: authLoading } = useAuth();
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileChecked, setProfileChecked] = useState(false);
-  const sessionCleared = useRef(false);
 
   // 1. Load onboarding flag from AsyncStorage (runs once on mount)
   useEffect(() => {
@@ -206,15 +206,6 @@ function RootGate() {
       .then((value) => setHasOnboarded(value === 'true'))
       .catch(() => setHasOnboarded(false));
   }, []);
-
-  // 2. When onboarding not completed, proactively clear any persisted Supabase
-  //    session (iOS reinstall: Keychain tokens survive uninstall).
-  useEffect(() => {
-    if (hasOnboarded === false && !sessionCleared.current) {
-      sessionCleared.current = true;
-      clearStaleSession();
-    }
-  }, [hasOnboarded]);
 
   // Derived: if onboarding not completed, treat user as logged out
   const effectiveUser = hasOnboarded ? user : null;
@@ -301,6 +292,22 @@ function RootGate() {
 }
 
 export default function RootLayout() {
+  const [bootReady, setBootReady] = useState(false);
+
+  // Run fresh-install keychain cleanup BEFORE Supabase client is created.
+  // Native splash screen stays visible until boot + auth gate resolve.
+  useEffect(() => {
+    console.log('[Boot] start');
+    resetAuthOnFreshInstallIfNeeded().then(() => {
+      setBootReady(true);
+    });
+  }, []);
+
+  if (!bootReady) {
+    // Return minimal wrapper; native splash screen covers the screen.
+    return <View style={{ flex: 1 }} />;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>

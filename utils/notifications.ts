@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Habit } from './sampleData';
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 import { logNotificationEvent } from './notificationAnalytics';
 
 // ── Notification tags for idempotent identification ──
@@ -283,7 +283,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 export async function savePushTokenToSupabase(userId: string, token: string): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('profiles')
     .upsert(
       { id: userId, expo_push_token: token },

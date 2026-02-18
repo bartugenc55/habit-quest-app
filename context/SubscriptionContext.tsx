@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '../utils/supabase';
+import { getSupabase } from '../utils/supabase';
 import { useAuth } from './AuthContext';
 
 const STORAGE_KEY = '@habitquest_premium';
@@ -33,7 +33,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     (async () => {
       try {
-        const { data } = await supabase
+        const { data } = await getSupabase()
           .from('profiles')
           .select('is_premium')
           .eq('id', user.id)
@@ -49,7 +49,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           const local = await AsyncStorage.getItem(STORAGE_KEY);
           if (local === 'true') {
             setIsPremium(true);
-            await supabase
+            await getSupabase()
               .from('profiles')
               .upsert({ id: user.id, is_premium: true }, { onConflict: 'id' });
           } else {
@@ -78,7 +78,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           await AsyncStorage.setItem(STORAGE_KEY, 'true');
           // Persist to Supabase
           if (user) {
-            await supabase
+            await getSupabase()
               .from('profiles')
               .upsert({ id: user.id, is_premium: true }, { onConflict: 'id' });
           }
@@ -95,7 +95,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     // Check Supabase first
     if (user) {
       try {
-        const { data } = await supabase
+        const { data } = await getSupabase()
           .from('profiles')
           .select('is_premium')
           .eq('id', user.id)
@@ -121,7 +121,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const checkSubscriptionStatus = useCallback(async (): Promise<boolean> => {
     if (user) {
       try {
-        const { data } = await supabase
+        const { data } = await getSupabase()
           .from('profiles')
           .select('is_premium')
           .eq('id', user.id)

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { supabase } from '../utils/supabase'
+import { getSupabase } from '../utils/supabase'
+import { clearSupabaseSecureStoreKeys } from '../utils/firstRunReset'
 
 // ── Dev Auth Bypass ─────────────────────────────────────────────────
 // Set to `true` to skip login screens and use a mock user during development.
@@ -55,12 +56,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return
     }
 
+    const supabase = getSupabase()
+
     supabase.auth.getSession().then(({ data }) => {
       if (signingOut.current) return
       setSession(data.session)
       setUser(data.session?.user ?? null)
       setIsLoading(false)
-      console.log('[Auth] initial session:', data.session ? data.session.user.email : 'NONE')
+      console.log('[Auth] getSession result = session exists', !!data.session)
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => {
@@ -78,19 +81,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [])
 
   const signInWithOtp = async (email: string): Promise<{ error: string | null }> => {
-    const { error } = await supabase.auth.signInWithOtp({ email })
+    const { error } = await getSupabase().auth.signInWithOtp({ email })
     return { error: error?.message ?? null }
   }
 
   const verifyOtp = async (email: string, token: string): Promise<{ error: string | null }> => {
-    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+    const { error } = await getSupabase().auth.verifyOtp({ email, token, type: 'email' })
     return { error: error?.message ?? null }
   }
 
   const signOut = async () => {
     if (DEV_AUTH_BYPASS) return
 
-    console.log('[Auth] signOut started')
+    console.log('[Auth] signOut START')
     // 1. Set guard so the auth listener can't re-set user
     signingOut.current = true
 
@@ -100,7 +103,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // 3. Call Supabase signOut (clears stored tokens from AsyncStorage)
     try {
-      await supabase.auth.signOut({ scope: 'local' })
+      await getSupabase().auth.signOut({ scope: 'local' })
     } catch (e) {
       console.error('[Auth] supabase.signOut error:', e)
     }
@@ -108,16 +111,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // 4. Belt-and-suspenders: nuke any leftover Supabase session keys
     try {
       const allKeys = await AsyncStorage.getAllKeys()
-      const sbKeys = allKeys.filter((k) => k.startsWith('sb-'))
+      const sbKeys = allKeys.filter(
+        (k) => k.startsWith('sb-') || k.startsWith('supabase'),
+      )
       if (sbKeys.length > 0) {
         await AsyncStorage.multiRemove(sbKeys)
-        console.log('[Auth] removed stale sb- keys:', sbKeys)
+        console.log('[Auth] removed stale supabase keys:', sbKeys)
       }
     } catch (e) {
-      console.error('[Auth] clear sb- keys error:', e)
+      console.error('[Auth] clear supabase keys error:', e)
     }
 
-    // 5. Clear cached profile & premium so old data doesn't persist
+    // 5. Clear SecureStore / Keychain tokens (iOS Keychain survives uninstall)
+    try {
+      await clearSupabaseSecureStoreKeys()
+      console.log('[Auth] cleared SecureStore keychain tokens')
+    } catch (e) {
+      console.error('[Auth] clear SecureStore error:', e)
+    }
+
+    // 6. Clear cached profile & premium so old data doesn't persist
     try {
       await AsyncStorage.removeItem('@habitquest_profile')
       await AsyncStorage.removeItem('@habitquest_premium')
@@ -125,9 +138,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('[Auth] clear profile/premium error:', e)
     }
 
-    // 6. Release the guard so future logins work
+    // 7. Release the guard so future logins work
     signingOut.current = false
-    console.log('[Auth] signOut complete – session, profile, premium & sb-keys cleared')
+    console.log('[Auth] signOut END')
   }
 
   const clearStaleSession = async () => {
@@ -137,20 +150,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSession(null)
 
     try {
-      await supabase.auth.signOut({ scope: 'local' })
+      await getSupabase().auth.signOut({ scope: 'local' })
     } catch (e) {
       console.error('[Auth] stale signOut error:', e)
     }
 
     try {
       const allKeys = await AsyncStorage.getAllKeys()
-      const sbKeys = allKeys.filter((k) => k.startsWith('sb-'))
+      const sbKeys = allKeys.filter(
+        (k) => k.startsWith('sb-') || k.startsWith('supabase'),
+      )
       if (sbKeys.length > 0) {
         await AsyncStorage.multiRemove(sbKeys)
-        console.log('[Auth] cleared stale sb- keys:', sbKeys)
+        console.log('[Auth] cleared stale supabase keys:', sbKeys)
       }
     } catch (e) {
-      console.error('[Auth] clear stale sb- keys error:', e)
+      console.error('[Auth] clear stale supabase keys error:', e)
+    }
+
+    // Also clear SecureStore / Keychain tokens
+    try {
+      await clearSupabaseSecureStoreKeys()
+    } catch (e) {
+      console.error('[Auth] clear stale SecureStore error:', e)
     }
 
     try {
