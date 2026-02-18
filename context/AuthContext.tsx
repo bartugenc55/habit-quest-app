@@ -34,6 +34,7 @@ type AuthContextType = {
   signInWithOtp: (email: string) => Promise<{ error: string | null }>
   verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  clearStaleSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -116,20 +117,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('[Auth] clear sb- keys error:', e)
     }
 
-    // 5. Clear cached profile so old name doesn't persist
+    // 5. Clear cached profile & premium so old data doesn't persist
     try {
       await AsyncStorage.removeItem('@habitquest_profile')
+      await AsyncStorage.removeItem('@habitquest_premium')
     } catch (e) {
-      console.error('[Auth] clear profile error:', e)
+      console.error('[Auth] clear profile/premium error:', e)
     }
 
     // 6. Release the guard so future logins work
     signingOut.current = false
-    console.log('[Auth] signOut complete – session, profile & sb-keys cleared')
+    console.log('[Auth] signOut complete – session, profile, premium & sb-keys cleared')
+  }
+
+  const clearStaleSession = async () => {
+    console.log('[Auth] clearStaleSession: wiping potentially stale tokens')
+    signingOut.current = true
+    setUser(null)
+    setSession(null)
+
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch (e) {
+      console.error('[Auth] stale signOut error:', e)
+    }
+
+    try {
+      const allKeys = await AsyncStorage.getAllKeys()
+      const sbKeys = allKeys.filter((k) => k.startsWith('sb-'))
+      if (sbKeys.length > 0) {
+        await AsyncStorage.multiRemove(sbKeys)
+        console.log('[Auth] cleared stale sb- keys:', sbKeys)
+      }
+    } catch (e) {
+      console.error('[Auth] clear stale sb- keys error:', e)
+    }
+
+    try {
+      await AsyncStorage.removeItem('@habitquest_profile')
+      await AsyncStorage.removeItem('@habitquest_premium')
+    } catch (e) {
+      console.error('[Auth] clear stale caches error:', e)
+    }
+
+    signingOut.current = false
+    console.log('[Auth] clearStaleSession complete')
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signInWithOtp, verifyOtp, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signInWithOtp, verifyOtp, signOut, clearStaleSession }}>
       {children}
     </AuthContext.Provider>
   )
