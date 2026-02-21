@@ -263,9 +263,11 @@ function RootGate() {
   if (!effectiveUser) {
     // 2a. Onboarding not completed → show onboarding
     if (!hasOnboarded) {
+      console.log('[RootGate] route -> onboarding');
       return <OnboardingScreen onFinish={handleOnboardingFinish} />;
     }
     // 2b. Onboarded but no session → must login
+    console.log('[RootGate] route -> auth');
     return <AuthScreen />;
   }
 
@@ -276,10 +278,12 @@ function RootGate() {
 
   // 4. No profile name → must create one
   if (!profileName) {
+    console.log('[RootGate] route -> name');
     return <CreateNameScreen onNameSet={handleNameSet} />;
   }
 
   // 5. All gates passed → main app
+  console.log('[RootGate] route -> tabs');
   return (
     <SubscriptionProvider>
       <HabitProvider>
