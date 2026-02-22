@@ -242,16 +242,6 @@ function RootGate() {
     setProfileName(name);
   }, []);
 
-  // ── Debug ──
-  console.log('[RootGate]', {
-    authLoading,
-    onboardingCompleted: hasOnboarded,
-    sessionExists: !!user,
-    effectiveSession: !!effectiveSession,
-    profileChecked,
-    hasName: !!profileName,
-  });
-
   // ── Gate: auth → onboarding → name → tabs ──
 
   // 1. Wait for Supabase auth + onboarding flag to resolve
@@ -263,11 +253,11 @@ function RootGate() {
   if (!effectiveUser) {
     // 2a. Onboarding not completed → show onboarding
     if (!hasOnboarded) {
-      console.log('[RootGate] route -> onboarding');
+      console.log('[RootGate] route: onboarding', { authLoading, hasOnboarded, sessionExists: !!user });
       return <OnboardingScreen onFinish={handleOnboardingFinish} />;
     }
     // 2b. Onboarded but no session → must login
-    console.log('[RootGate] route -> auth');
+    console.log('[RootGate] route: auth', { authLoading, hasOnboarded, sessionExists: !!user });
     return <AuthScreen />;
   }
 
@@ -278,12 +268,12 @@ function RootGate() {
 
   // 4. No profile name → must create one
   if (!profileName) {
-    console.log('[RootGate] route -> name');
+    console.log('[RootGate] route: name', { hasOnboarded, sessionExists: !!user, profileChecked });
     return <CreateNameScreen onNameSet={handleNameSet} />;
   }
 
   // 5. All gates passed → main app
-  console.log('[RootGate] route -> tabs');
+  console.log('[RootGate] route: tabs', { hasOnboarded, sessionExists: !!user, profileChecked, hasName: !!profileName });
   return (
     <SubscriptionProvider>
       <HabitProvider>
